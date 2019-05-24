@@ -9,10 +9,10 @@ class BreakLength extends React.Component
 	{
 		return(
 			<div className="BreakLength">
-				<h2>Break Length</h2>
-				<button id="addBreakLength" data-value='1' data-div="breakLength" data-timer="timerBreak" onClick={this.props.handleClick}>One minute more</button>
-				<div id="displayBreakLength">{(this.props.breakLength).toString()}</div>
-				<button id="reduceBreakLength" data-value='-1' data-div="breakLength"  data-timer="timerBreak" onClick={this.props.handleClick}>One minute less</button>
+				<h2 id="break-label">Break Length</h2>
+				<button id="break-increment" data-value='1' data-div="breakLength" data-timer="timerBreak" onClick={this.props.handleClick}>One minute more</button>
+				<div id="break-length">{(this.props.breakLength).toString()}</div>
+				<button id="break-decrement" data-value='-1' data-div="breakLength"  data-timer="timerBreak" onClick={this.props.handleClick}>One minute less</button>
 			</div>
 		);
 	}
@@ -24,10 +24,10 @@ class SessionLength extends React.Component
 	{
 		return(
 			<div className="SessionLength">
-				<h2>Session Length</h2>
-				<button id="addSessionLength" data-value='1' data-div="sessionLength" data-timer="timerSession" onClick={this.props.handleClick}>One minute more</button>
-				<div id="displaySessionLength">{(this.props.sessionLength).toString()}</div>
-				<button id="reduceSessionLength" data-value='-1' data-div="sessionLength" data-timer="timerSession" onClick={this.props.handleClick}>One minute less</button>
+				<h2 id="session-label">Session Length</h2>
+				<button id="session-increment" data-value='1' data-div="sessionLength" data-timer="timerSession" onClick={this.props.handleClick}>One minute more</button>
+				<div id="session-length">{(this.props.sessionLength).toString()}</div>
+				<button id="session-decrement" data-value='-1' data-div="sessionLength" data-timer="timerSession" onClick={this.props.handleClick}>One minute less</button>
 			</div>
 		);
 	}
@@ -50,12 +50,21 @@ class Display extends React.Component
 		return('' + minutes + ' : ' + seconds);
 	}
 
+	text(bolean)
+	{
+		if(bolean)
+			return('Session');
+		else
+			return('Break');
+	}
 	render()
 	{
 		return(
 			<div>
-				<div>{this.prettyClock(this.props.timer)}</div>
-				<button onClick={this.props.trigger}>Go</button>
+				<h2 id="timer-label">{this.text(this.props.isSession)}</h2>
+				<div id="time-left">{this.prettyClock(this.props.timer)}</div>
+				<button id="start_stop" onClick={this.props.trigger}>Run/Pause</button>
+				<button id="reset" onClick={(event) => { this.props.reset()} }>Reset</button>
 			</div>
 		);
 	}
@@ -72,23 +81,31 @@ class App extends React.Component
 			'sessionLength': 25,
 			'timerSession': 1500,
 			'timerBreak': 300,
-			'timerState': 'stopped',
-			'storedIntervalFunction': ''
+			'runningTimer': 1500,
+			'timerState': 'reset',
+			'storedIntervalFunction': '',
+			'isThisTimerATimerSession': true
 		};
 		this.handleClick = this.handleClick.bind(this);
 		this.trigger = this.trigger.bind(this);
 		this.decrementTimer = this.decrementTimer.bind(this);
+		this.reset = this.reset.bind(this);
 	}
 
 	handleClick(e)
 	{
 		let newValue = this.state[e.currentTarget.dataset.div] + parseInt(e.currentTarget.dataset.value);
-		this.setState({[e.currentTarget.dataset.div]: newValue, [e.currentTarget.dataset.timer]: newValue * 60});
+		if(newValue > 0 && newValue <= 60)
+			this.setState({[e.currentTarget.dataset.div]: newValue});
+		if(this.state.timerState === 'reset')
+		{
+			this.setState({[e.currentTarget.dataset.timer]: newValue * 60});
+		}
 	}
 
 	trigger()
-	{
-		if(this.state.timerState === 'stopped')
+{
+		if(this.state.timerState !== 'running')
 		{
 			this.setState({storedIntervalFunction : accurateInterval(() => this.decrementTimer(), 1000)});
 			this.setState({timerState: 'running'});
@@ -97,21 +114,42 @@ class App extends React.Component
 		{
 			this.state.storedIntervalFunction.clear();
 			this.setState({timerState: 'stopped'});
+
 		}
 	}
 
 	decrementTimer()
 	{
-		if(this.state.timerSession > 0)
-		this.setState({timerSession: this.state.timerSession - 1});
+		if(this.state.runningTimer > 0)
+			this.setState({runningTimer: this.state.runningTimer - 1});
+		if(this.state.runningTimer === 0 && this.state.isThisTimerATimerSession)
+		{
+			this.setState({ runningTimer: this.state.timerBreak, isThisTimerATimerSession: false});
+			this.audioBeep.play();
+		}
+		if(this.state.runningTimer === 0 && !this.state.isThisTimerATimerSession)
+		{
+			this.setState({ runningTimer: this.state.timerSession, isThisTimerATimerSession: true});
+		}
 	}
+
+	reset()
+{
+		this.setState({timerState: 'reset', runningTimer: this.state.sessionLength * 60, timerSession: this.state.sessionLength * 60, timerBreak: this.state.breakLength * 60});
+	if(this.state.timerState !== 'reset')
+		this.state.storedIntervalFunction.clear();
+}
+
 	render()
 	{
 		return (
 			<div className="App">
 				<BreakLength breakLength={this.state.breakLength} handleClick={this.handleClick}/>
 				<SessionLength sessionLength={this.state.sessionLength} handleClick={this.handleClick}/>
-				<Display trigger={this.trigger} timer={this.state.timerSession}/>
+				<Display trigger={this.trigger} timer={this.state.runningTimer} isSession={this.state.isThisTimerATimerSession} reset={this.reset}/>
+			<audio id="beep" preload="auto" 
+          src="https://goo.gl/65cBl1"
+          ref={(audio) => { this.audioBeep = audio; }} />
 			</div>
 		);
 	}
